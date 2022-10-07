@@ -1,0 +1,95 @@
+const express = require("express");
+const mysql = require("mysql2");
+const app = express();
+const port = 3000;
+
+// create the connection to database
+const connection = mysql.createConnection({
+  host: "localhost",
+  user: "root",
+  password: "",
+  database: "cpet17", //change this into custom database name
+});
+
+// throw error if connection failed
+connection.connect(function (err) {
+  if (err) throw err;
+  console.log("Connected to Database!");
+});
+
+//insert method using GET
+//req.query... 'shortned'
+//users2 is the table name
+app.get("/insert", (req, res) => {
+  connection.query(
+    "INSERT INTO users2 (firstname, lastname, phone, address1, address2, email) VALUES (?, ?, ?, ?, ?, ?);",
+    [
+      req.query.f,
+      req.query.l,
+      req.query.p,
+      req.query.a1,
+      req.query.a2,
+      req.query.e,
+    ],
+    function () {
+      try {
+        console.log(req.query);
+        res.send("INSERTED SUCCESSFULLY");
+      } catch (err) {
+        res.send(Error, `${err}`);
+      }
+    }
+  );
+});
+
+//update method using GET
+app.get("/update", (req, res) => {
+  connection.query(
+    "UPDATE users2 SET firstname=?, lastname=?, phone=?, address1=?, address2=?, email=? WHERE id=?;",
+    [
+      req.query.f,
+      req.query.l,
+      req.query.p,
+      req.query.a1,
+      req.query.a2,
+      req.query.e,
+      req.query.id,
+    ],
+    function () {
+      try {
+        console.log(req.query);
+        res.send("UPDATED SUCCESSFULLY");
+      } catch (err) {
+        res.send(Error, `${err}`);
+      }
+    }
+  );
+});
+
+//delete method using GET
+app.get("/delete", (req, res) => {
+  connection.query(
+    "DELETE FROM users2 where id=?;",
+    [req.query.id],
+    function () {
+      try {
+        res.send("DELETED SUCCESSFULLY");
+      } catch (err) {
+        res.send(Error, `${err}`);
+      }
+    }
+  );[]
+});
+
+//show users2 table
+app.get("/showtables", (req, res) => {
+  connection.query("SELECT * FROM users2;", function (err, result) {
+    if (err) throw err;
+    res.send(result);
+  });
+});
+
+// listen to port
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
