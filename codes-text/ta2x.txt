@@ -1,0 +1,195 @@
+>>> Make database table:
+    CREATE TABLE ta2x (
+      id INT NOT NULL AUTO_INCREMENT,
+      dt DATETIME(6),
+      img MEDIUMBLOB
+      PRIMARY_KEY (id)
+    );
+
+>>> npm install express
+>>> npm install mysql2
+>>> npm install body-parser
+>>> npm install fs
+>>> Convert BLOB (BIN file) to PNG: https://convertio.co/
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+const express = require("express");
+const mysql = require("mysql2");
+const bodyParser = require("body-parser")
+const app = express();
+const fs = require('fs');
+const port = 3000;
+const db_table = "ta2x"
+
+
+// listen to port
+app.listen(port);
+
+// create the connection to database
+const connection = mysql.createConnection({
+  host: "localhost",
+  user: "root",
+  password: "",
+  database: "cpet17", //change this into custom database name
+});
+
+// throw error if connection failed
+connection.connect(function (err) {
+  if (err) throw err;
+  console.log("Connected to Database!");
+});
+
+// parse application/x-www-form-urlencoded
+app.use(bodyParser.urlencoded({ extended: false }))
+
+// parse application/json
+app.use(bodyParser.json())
+
+app.post('/capture', (req, res)=> {
+  // get the request json
+  var { dateTime, path } = req.body;
+
+  // read file from the path from the json
+  var img = fs.readFileSync(path);
+  console.log(img);
+
+  // save datetime, imgfile, into the db
+  connection.query(`INSERT INTO ${db_table} (dt, img) VALUES (?, ?);`,
+  [dateTime, img],
+  (err, result)=> {
+    try {
+      if (result.affectedRows > 0) {
+        res.json({ data: "Success" });
+      } else {
+        res.json({ message: "Something went wrong." });
+      }
+    } catch {
+      res.json({ message: err });
+    }
+  })
+})
+
+###################################################################
+===================================================================
+===================================================================
+###################################################################
+
+import cv2, time, pandas, requests, os
+from datetime import datetime
+
+# Assigning our static_back to None
+static_back = None
+  
+# List when any moving object appear
+motion_list = [ None, None ]
+  
+# Time of movement
+time = []
+  
+# Initializing DataFrame, one column is start 
+# time and other column is end time
+df = pandas.DataFrame(columns = ["Start", "End"])
+  
+# Capturing video
+video = cv2.VideoCapture(0)
+
+# number of frames captured with movements
+count = 0
+  
+# Infinite while loop to treat stack of image as video
+while True:
+    # Reading frame(image) from video
+    _, frame = video.read()
+  
+    # Initializing motion = 0(no motion)
+    motion = 0
+  
+    # Converting color image to gray_scale image
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+  
+    # Converting gray scale image to GaussianBlur 
+    # so that change can be find easily
+    gray = cv2.GaussianBlur(gray, (21, 21), 0)
+  
+    # In first iteration we assign the value 
+    # of static_back to our first frame
+    if static_back is None:
+        static_back = gray
+        continue
+  
+    # Difference between static background 
+    # and current frame(which is GaussianBlur)
+    diff_frame = cv2.absdiff(static_back, gray)
+  
+    # If change in between static background and
+    # current frame is greater than 110 it will show white color(255)
+    thresh_frame = cv2.threshold(diff_frame, 110, 255, cv2.THRESH_BINARY)[1]
+    thresh_frame = cv2.dilate(thresh_frame, None, iterations=1)
+  
+    # Finding contour of moving object
+    contours, _ = cv2.findContours(thresh_frame.copy(), 
+                    cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+  
+    for contour in contours:
+        if cv2.contourArea(contour) < 5000:
+            continue
+        motion = 1
+  
+        (x, y, w, h) = cv2.boundingRect(contour)
+        # making red rectangle around the moving object
+        # putting text above the rectangle
+        box = cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+        cv2.putText(box, 'Movement Detected!', (x, y-10), cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5, (0, 0, 255), 1, cv2.LINE_AA)
+  
+    # Appending status of motion
+    motion_list.append(motion)
+    motion_list = motion_list[-2:]
+    
+    # get the current datetime
+    time_now = datetime.now()
+
+    # Appending Start time of motion
+    if motion_list[-1] == 1 and motion_list[-2] == 0:
+        time.append(time_now)
+  
+    # Appending End time of motion
+    if motion_list[-1] == 0 and motion_list[-2] == 1:
+        time.append(time_now)
+
+        # Save the captured frame
+        file = f"frame{count}.jpg"
+        cv2.imwrite(file, frame)
+
+        # Get the absolute path of saved image (frame)
+        path = os.path.abspath(file)
+
+        # Increment the count value
+        count += 1
+
+        # Make a request
+        data = {"dateTime": str(time_now), "path": path}
+        res = requests.post('http://localhost:3000/capture', json=data)
+
+        # Display the json response
+        print(res.json())
+
+    # Displaying the black and white image in which if
+    # intensity difference greater than 110 it will appear white
+    cv2.imshow("Threshold Frame", thresh_frame)
+  
+    # Displaying color frame with contour of motion of object
+    cv2.imshow("Color Frame", frame)
+  
+    key = cv2.waitKey(1)
+    # if q entered whole process will stop
+    if key == ord('q'):
+        # if something is moving then it append the end time of movement
+        if motion == 1:
+            time.append(datetime.now())
+        break
+
+video.release()
+cv2.destroyAllWindows()

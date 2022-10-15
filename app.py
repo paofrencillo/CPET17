@@ -1,111 +1,117 @@
-import requests, cv2, time, pandas
+import cv2, time, pandas, requests, os
 from datetime import datetime
 
+# Assigning our static_back to None
+static_back = None
+  
+# List when any moving object appear
+motion_list = [ None, None ]
+  
+# Time of movement
+time = []
+  
+# Initializing DataFrame, one column is start 
+# time and other column is end time
+df = pandas.DataFrame(columns = ["Start", "End"])
+  
+# Capturing video
+video = cv2.VideoCapture(0)
 
-# Assigning our initial state in the form of variable initialState as None for initial frames  
-initialState = None  
-
-# List of all the tracks when there is any detected of motion in the frames  
-motionTrackList= [ None, None ]  
-
-# A new list 'time' for storing the time when movement detected  
-motionTime = []  
-
-# Initialising DataFrame variable 'dataFrame' using pandas libraries panda with Initial and Final column  
-dataFrame = pandas.DataFrame(columns = ["Initial", "Final"])
-
-# starting the webCam to capture the video using cv2 module  
-video = cv2.VideoCapture(0)  
-
-# using infinite loop to capture the frames from the video 
-while True:  
-    # Reading each image or frame from the video using read function 
-    check, cur_frame = video.read()  
-
-    # Defining 'motion' variable equal to zero as initial frame 
-    var_motion = 0  
-
-    # From colour images creating a gray frame 
-    gray_image = cv2.cvtColor(cur_frame, cv2.COLOR_BGR2GRAY)  
-
-    # To find the changes creating a GaussianBlur from the gray scale image  
-    gray_frame = cv2.GaussianBlur(gray_image, (21, 21), 0)  
+# number of frames captured with movements
+count = 0
+  
+# Infinite while loop to treat stack of image as video
+while True:
+    # Reading frame(image) from video
+    _, frame = video.read()
+  
+    # Initializing motion = 0(no motion)
+    motion = 0
+  
+    # Converting color image to gray_scale image
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+  
+    # Converting gray scale image to GaussianBlur 
+    # so that change can be find easily
+    gray = cv2.GaussianBlur(gray, (21, 21), 0)
+  
+    # In first iteration we assign the value 
+    # of static_back to our first frame
+    if static_back is None:
+        static_back = gray
+        continue
+  
+    # Difference between static background 
+    # and current frame(which is GaussianBlur)
+    diff_frame = cv2.absdiff(static_back, gray)
+  
+    # If change in between static background and
+    # current frame is greater than 110 it will show white color(255)
+    thresh_frame = cv2.threshold(diff_frame, 110, 255, cv2.THRESH_BINARY)[1]
+    thresh_frame = cv2.dilate(thresh_frame, None, iterations=1)
+  
+    # Finding contour of moving object
+    contours, _ = cv2.findContours(thresh_frame.copy(), 
+                    cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+  
+    for contour in contours:
+        if cv2.contourArea(contour) < 5000:
+            continue
+        motion = 1
+  
+        (x, y, w, h) = cv2.boundingRect(contour)
+        # making red rectangle around the moving object
+        # putting text above the rectangle
+        box = cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+        cv2.putText(box, 'Movement Detected!', (x, y-10), cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5, (0, 0, 255), 1, cv2.LINE_AA)
+  
+    # Appending status of motion
+    motion_list.append(motion)
+    motion_list = motion_list[-2:]
     
-    # For the first iteration checking the condition
-    # we will assign grayFrame to initalState if is none  
-    if initialState is None:  
-        initialState = gray_frame  
-        continue  
+    # get the current datetime
+    time_now = datetime.now()
 
-    # Calculation of difference between static or initial and gray frame we created  
-    differ_frame = cv2.absdiff(initialState, gray_frame)  
+    # Appending Start time of motion
+    if motion_list[-1] == 1 and motion_list[-2] == 0:
+        time.append(time_now)
+  
+    # Appending End time of motion
+    if motion_list[-1] == 0 and motion_list[-2] == 1:
+        time.append(time_now)
 
-    # the change between static or initial background and current gray frame are highlighted 
-    thresh_frame = cv2.threshold(differ_frame, 30, 255, cv2.THRESH_BINARY)[1]  
-    thresh_frame = cv2.dilate(thresh_frame, None, iterations = 2)  
+        # Save the captured frame
+        file = f"frame{count}.jpg"
+        cv2.imwrite(file, frame)
 
-    # For the moving object in the frame finding the coutours 
-    cont, _ = cv2.findContours(thresh_frame.copy(),   
-                    cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  
+        # Get the absolute path of saved image (frame)
+        path = os.path.abspath(file)
 
-    for cur in cont:  
-        if cv2.contourArea(cur) < 10000:  
-            continue  
-        var_motion = 1  
-        (cur_x, cur_y,cur_w, cur_h) = cv2.boundingRect(cur)  
+        # Increment the count value
+        count += 1
 
-        # To create a rectangle of green color around the moving object  
-        cv2.rectangle(cur_frame, (cur_x, cur_y), (cur_x + cur_w, cur_y + cur_h), (0, 255, 0), 3) 
+        # Make a request
+        data = {"dateTime": str(time_now), "path": path}
+        res = requests.post('http://localhost:3000/capture', json=data)
 
-    # from the frame adding the motion status   
-    motionTrackList.append(var_motion)  
-    motionTrackList = motionTrackList[-2:]  
+        # Display the json response
+        print(res.json())
 
-    # Adding the Start time of the motion 
+    # Displaying the black and white image in which if
+    # intensity difference greater than 110 it will appear white
+    cv2.imshow("Threshold Frame", thresh_frame)
+  
+    # Displaying color frame with contour of motion of object
+    cv2.imshow("Color Frame", frame)
+  
+    key = cv2.waitKey(1)
+    # if q entered whole process will stop
+    if key == ord('q'):
+        # if something is moving then it append the end time of movement
+        if motion == 1:
+            time.append(datetime.now())
+        break
 
-    if motionTrackList[-1] == 1 and motionTrackList[-2] == 0:
-         motionTime.append(datetime.now())  
-
-    # Adding the End time of the motion 
-    if motionTrackList[-1] == 0 and motionTrackList[-2] == 1:  
-       motionTime.append(datetime.now())  
-
-    # In the gray scale displaying the captured image 
-    cv2.imshow("The image captured in the Gray Frame is shown below: ", gray_frame)  
-
-    # To display the difference between inital static frame and the current frame 
-    cv2.imshow("Difference between the  inital static frame and the current frame: ", differ_frame)  
-
-    # To display on the frame screen the black and white images from the video  
-    cv2.imshow("Threshold Frame created from the PC or Laptop Webcam is: ", thresh_frame)  
-
-    # Through the colour frame displaying the contour of the object
-    cv2.imshow("From the PC or Laptop webcam, this is one example of the Colour Frame:", cur_frame)  
-
-    # Creating a key to wait  
-    wait_key = cv2.waitKey(1)  
-
-    # With the help of the 'm' key ending the whole process of our system   
-
-    if wait_key == ord('m'):  
-
-        # adding the motion variable value to motiontime list when something is moving on the screen  
-
-        if var_motion == 1:  
-
-            motionTime.append(datetime.now())  
-
-        break 
-
-# At last we are adding the time of motion or var_motion inside the data frame  
-for a in range(0, len(motionTime), 2):
-   dataFrame = dataFrame.append({"Initial" : time[a], "Final" : motionTime[a + 1]}, ignore_index = True)  
-
-# To record all the movements, creating a CSV file  
-dataFrame.to_csv("EachMovement.csv")  
-
-# Releasing the video   
-video.release()  
-
-# Now, Closing or destroying all the open windows with the help of openCV  
+video.release()
 cv2.destroyAllWindows()

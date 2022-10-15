@@ -1,8 +1,14 @@
 const express = require("express");
 const mysql = require("mysql2");
+const bodyParser = require("body-parser")
 const app = express();
+const fs = require('fs');
 const port = 3000;
 const db_table = "ta2x"
+
+
+// listen to port
+app.listen(port);
 
 // create the connection to database
 const connection = mysql.createConnection({
@@ -18,32 +24,32 @@ connection.connect(function (err) {
   console.log("Connected to Database!");
 });
 
-//insert method using GET
-//req.query... 'shortned'
-//users2 is the table name
-app.get("/insert", (req, res) => {
-  connection.query(
-    `INSERT INTO ${db_table} (dt) VALUES (?);`,
-    [
-      req.query.f,
-      req.query.l,
-      req.query.p,
-      req.query.a1,
-      req.query.a2,
-      req.query.e,
-    ],
-    function () {
-      try {
-        console.log(req.query);
-        res.send("INSERTED SUCCESSFULLY");
-      } catch (err) {
-        res.send(Error, `${err}`);
-      }
-    }
-  );
-});
+// parse application/x-www-form-urlencoded
+app.use(bodyParser.urlencoded({ extended: false }))
 
-// listen to port
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+// parse application/json
+app.use(bodyParser.json())
+
+app.post('/capture', (req, res)=> {
+  // get the request json
+  var { dateTime, path } = req.body;
+
+  // read file from the path from the json
+  var img = fs.readFileSync(path);
+  console.log(img);
+
+  // save datetime, imgfile, into the db
+  connection.query(`INSERT INTO ${db_table} (dt, img) VALUES (?, ?);`,
+  [dateTime, img],
+  (err, result)=> {
+    try {
+      if (result.affectedRows > 0) {
+        res.json({ data: "Success" });
+      } else {
+        res.json({ message: "Something went wrong." });
+      }
+    } catch {
+      res.json({ message: err });
+    }
+  })
+})
