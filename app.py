@@ -47,7 +47,7 @@ while True:
   
     # If change in between static background and
     # current frame is greater than 110 it will show white color(255)
-    thresh_frame = cv2.threshold(diff_frame, 110, 255, cv2.THRESH_BINARY)[1]
+    thresh_frame = cv2.threshold(diff_frame, 150, 255, cv2.THRESH_BINARY)[1]
     thresh_frame = cv2.dilate(thresh_frame, None, iterations=1)
   
     # Finding contour of moving object
@@ -55,7 +55,7 @@ while True:
                     cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
   
     for contour in contours:
-        if cv2.contourArea(contour) < 5000:
+        if cv2.contourArea(contour) < 10000:
             continue
         motion = 1
   
@@ -78,7 +78,7 @@ while True:
         time.append(time_now)
   
     # Appending End time of motion
-    if motion_list[-1] == 0 and motion_list[-2] == 1:
+    elif motion_list[-1] == 0 and motion_list[-2] == 1:
         time.append(time_now)
 
         # Save the captured frame
