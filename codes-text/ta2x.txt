@@ -2,8 +2,8 @@
     CREATE TABLE ta2x (
       id INT NOT NULL AUTO_INCREMENT,
       dt DATETIME(6),
-      img MEDIUMBLOB
-      PRIMARY_KEY (id)
+      img MEDIUMBLOB,
+      PRIMARY KEY (id)
     );
 
 >>> npm install express
