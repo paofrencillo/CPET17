@@ -35,12 +35,12 @@ app.post('/capture', (req, res)=> {
   var { dateTime, path } = req.body;
 
   // read file from the path from the json
-  var img = fs.readFileSync(path);
-  console.log(img);
+  // var img = fs.readFileSync(path);
+  // console.log(img);
 
   // save datetime, imgfile, into the db
   connection.query(`INSERT INTO ${db_table} (dt, img) VALUES (?, ?);`,
-  [dateTime, img],
+  [dateTime, path],
   (err, result)=> {
     try {
       if (result.affectedRows > 0) {
