@@ -1,44 +1,60 @@
 >>> Make database table:
-    CREATE TABLE ta2x (
+    CREATE TABLE {table_name} (
       id INT NOT NULL AUTO_INCREMENT,
       dt DATETIME(6),
       img MEDIUMBLOB,
       PRIMARY KEY (id)
     );
+>>> Make different folder for the node.js and next.js
+>>> Go to node.js folder and install the following:
+    > npm install express
+    > npm install mysql2
+    > npm install body-parser
+>>> Go to next.js folder and install the following:
+    > npx create-next-app@latest
+>>> Make python file to the node.js folder and paste the code
+        there (capture movement)
+>>> Make index.js file to the node.js folder and paste the
+        code for backend there
+>>> Make images folder inside the node.js folder (folder for saving captured movements)
+>>> Make image.js file to the next.js folder/pages and paste
+        the code for front end there
+>>> Run first the backend, then the front end and run this into
+        the search engine: (localhost:{port}/image), lastly the
+        python file
 
->>> npm install express
->>> npm install mysql2
->>> npm install body-parser
->>> npm install fs
->>> Convert BLOB (BIN file) to PNG: https://convertio.co/
+#############################################################################
+=============================================================================
+=============================================================================
+#############################################################################
 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+******** index.js ********
 
 const express = require("express");
 const mysql = require("mysql2");
 const bodyParser = require("body-parser")
 const app = express();
-const fs = require('fs');
-const port = 3000;
-const db_table = "ta2x"
+const port = 4000;
+const db = "cpet17";
+const db_table = "nextjs";
 
 
-// listen to port
-app.listen(port);
+app.listen(port, () => {
+    console.log(`🚀 Server started at http://localhost:${port}`)
+})
 
 // create the connection to database
 const connection = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "cpet17", //change this into custom database name
+    host: "localhost",
+    user: "root",
+    password: "",
+    database: `${db}`,
 });
 
 // throw error if connection failed
 connection.connect(function (err) {
-  if (err) throw err;
-  console.log("Connected to Database!");
+    if (err) throw err;
+    console.log("Connected to Database!");
 });
 
 // parse application/x-www-form-urlencoded
@@ -48,31 +64,84 @@ app.use(bodyParser.urlencoded({ extended: false }))
 app.use(bodyParser.json())
 
 app.post('/capture', (req, res)=> {
-  // get the request json
-  var { dateTime, path } = req.body;
-
-  // save datetime, imgfile, into the db
-  connection.query(`INSERT INTO ${db_table} (dt, img) VALUES (?, ?);`,
-  [dateTime, path],
-  (err, result)=> {
-    try {
-      if (result.affectedRows > 0) {
-        res.json({ data: "Success" });
-      } else {
-        res.json({ message: "Something went wrong." });
-      }
-    } catch {
-      res.json({ message: err });
-    }
-  })
+    // get the request json
+    var { dateTime, img } = req.body;
+  
+    // save datetime, imgfile, into the db
+    connection.query(`INSERT INTO ${db_table} (date_time, img) VALUES (?, ?);`,
+    [dateTime, img],
+    (err, result)=> {
+        try {
+            if (result.affectedRows > 0) {
+            res.json({ data: "Success" });
+        } else {
+          res.json({ message: "Something went wrong." });
+        }
+        } catch {
+            res.json({ message: err });
+        }
+    })
 })
 
-###################################################################
-===================================================================
-===================================================================
-###################################################################
+app.get('/show-images', (req, res)=> {
+    // Select the last entry from the db
+    connection.query(`SELECT * FROM ${db_table} ORDER BY id DESC LIMIT 1;`,
+    (err, results)=> {
+        try {
+            if (results.length > 0) {
+                // send a json response containg the image data (blob)
+                res.json({'imgData': results[0]['img']});
+        } else {
+          res.json({ message: "Something went wrong." });
+        }
+        } catch {
+            res.json({ message: err });
+        }
+    })
+})
 
-import cv2, time, pandas, requests, os, base64
+=====================================================================
+=====================================================================
+
+******** image.js ********
+
+function ShowImage({ data }) {
+    // Get the image data
+    const image = data.imgData.data;
+
+    // Convert into blob into string with charset=utf-8
+    const base64Image = Buffer.from(image, 'base64').toString('utf-8');
+
+    // Configure the image tag attribute (src)
+    const imgSrc = "data:image/png;base64," + base64Image;
+    
+    // Render into HTML
+    return (
+        <div>
+            <img src={imgSrc} />
+        </div>
+    )
+}
+
+export async function getServerSideProps() {
+    // Fetch data from the server
+    const response = await fetch('http://localhost:4000/show-images');
+
+    // Get the json response
+    const data = await response.json();
+    return {
+        props: { data },
+    }
+}
+
+export default ShowImage
+
+=====================================================================
+=====================================================================
+
+******** python file ********
+
+import cv2, time, pandas, requests, base64
 from datetime import datetime
 
 # Assigning our static_back to None
@@ -127,7 +196,7 @@ while True:
   
     # If change in between static background and
     # current frame is greater than 110 it will show white color(255)
-    thresh_frame = cv2.threshold(diff_frame, 100, 255, cv2.THRESH_BINARY)[1]
+    thresh_frame = cv2.threshold(diff_frame, 120, 255, cv2.THRESH_BINARY)[1]
     thresh_frame = cv2.dilate(thresh_frame, None, iterations=1)
   
     # Finding contour of moving object
@@ -162,19 +231,19 @@ while True:
         time.append(time_now)
 
         # Save the captured frame
-        file = f"frame{count}.jpg"
+        file = f"images/frame{count}.jpg"
         cv2.imwrite(file, frame)
 
         # Get the absolute path of saved image (frame)
-        path = os.path.abspath(file)
-        base64img = convertToBinaryData(path)
+        # img = os.path.abspath(filepath)
+        base64img = convertToBinaryData(file)
 
         # Increment the count value
         count += 1
 
         # Make a request
-        data = {"dateTime": str(time_now), "path": str(base64img)}
-        res = requests.post('http://localhost:3000/capture', json=data)
+        data = {"dateTime": str(time_now), "img": str(base64img)}
+        res = requests.post('http://localhost:4000/capture', json=data)
 
         # Display the json response
         print(res.json())

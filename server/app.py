@@ -1,78 +1,4 @@
->>> Make database table:
-    CREATE TABLE ta2x (
-      id INT NOT NULL AUTO_INCREMENT,
-      dt DATETIME(6),
-      img MEDIUMBLOB,
-      PRIMARY KEY (id)
-    );
-
->>> npm install express
->>> npm install mysql2
->>> npm install body-parser
->>> npm install fs
->>> Convert BLOB (BIN file) to PNG: https://convertio.co/
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-const express = require("express");
-const mysql = require("mysql2");
-const bodyParser = require("body-parser")
-const app = express();
-const fs = require('fs');
-const port = 3000;
-const db_table = "ta2x"
-
-
-// listen to port
-app.listen(port);
-
-// create the connection to database
-const connection = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "cpet17", //change this into custom database name
-});
-
-// throw error if connection failed
-connection.connect(function (err) {
-  if (err) throw err;
-  console.log("Connected to Database!");
-});
-
-// parse application/x-www-form-urlencoded
-app.use(bodyParser.urlencoded({ extended: false }))
-
-// parse application/json
-app.use(bodyParser.json())
-
-app.post('/capture', (req, res)=> {
-  // get the request json
-  var { dateTime, path } = req.body;
-
-  // save datetime, imgfile, into the db
-  connection.query(`INSERT INTO ${db_table} (dt, img) VALUES (?, ?);`,
-  [dateTime, path],
-  (err, result)=> {
-    try {
-      if (result.affectedRows > 0) {
-        res.json({ data: "Success" });
-      } else {
-        res.json({ message: "Something went wrong." });
-      }
-    } catch {
-      res.json({ message: err });
-    }
-  })
-})
-
-###################################################################
-===================================================================
-===================================================================
-###################################################################
-
-import cv2, time, pandas, requests, os, base64
+import cv2, time, pandas, requests, base64
 from datetime import datetime
 
 # Assigning our static_back to None
@@ -127,7 +53,7 @@ while True:
   
     # If change in between static background and
     # current frame is greater than 110 it will show white color(255)
-    thresh_frame = cv2.threshold(diff_frame, 100, 255, cv2.THRESH_BINARY)[1]
+    thresh_frame = cv2.threshold(diff_frame, 120, 255, cv2.THRESH_BINARY)[1]
     thresh_frame = cv2.dilate(thresh_frame, None, iterations=1)
   
     # Finding contour of moving object
@@ -162,19 +88,19 @@ while True:
         time.append(time_now)
 
         # Save the captured frame
-        file = f"frame{count}.jpg"
+        file = f"images/frame{count}.jpg"
         cv2.imwrite(file, frame)
 
         # Get the absolute path of saved image (frame)
-        path = os.path.abspath(file)
-        base64img = convertToBinaryData(path)
+        # img = os.path.abspath(filepath)
+        base64img = convertToBinaryData(file)
 
         # Increment the count value
         count += 1
 
         # Make a request
-        data = {"dateTime": str(time_now), "path": str(base64img)}
-        res = requests.post('http://localhost:3000/capture', json=data)
+        data = {"dateTime": str(time_now), "img": str(base64img)}
+        res = requests.post('http://localhost:4000/capture', json=data)
 
         # Display the json response
         print(res.json())
