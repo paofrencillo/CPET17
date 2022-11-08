@@ -1,4 +1,4 @@
-import cv2, time, pandas, requests, base64
+import cv2, time, pandas, requests, os, base64
 from datetime import datetime
 
 # Assigning our static_back to None
@@ -88,19 +88,19 @@ while True:
         time.append(time_now)
 
         # Save the captured frame
-        file = f"images/frame{count}.jpg"
+        file = f"frame{count}.jpg"
         cv2.imwrite(file, frame)
 
         # Get the absolute path of saved image (frame)
-        # img = os.path.abspath(filepath)
-        base64img = convertToBinaryData(file)
+        path = os.path.abspath(file)
+        base64img = convertToBinaryData(path)
 
         # Increment the count value
         count += 1
 
         # Make a request
-        data = {"dateTime": str(time_now), "img": str(base64img)}
-        res = requests.post('http://localhost:4000/capture', json=data)
+        data = {"dateTime": str(time_now), "path": str(base64img)}
+        res = requests.post('http://localhost:3000/capture', json=data)
 
         # Display the json response
         print(res.json())
